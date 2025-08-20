@@ -1,18 +1,33 @@
 struct Settings {
-  placeholder: f32,
+  numberOfSteps: u32,
 }
 
 struct Camera {
   @align(16) position: vec3f,
+  @align(16) viewportDeltaU: vec3f,
+  @align(16) viewportDeltaV: vec3f,
+  @align(16) pixel00: vec3f,
   imageSize: vec2f,
-  focalLength: f32,
-  fieldOfView: f32,
+}
+
+struct BlackHole {
+  position: vec3f,
+  mass: f32,
+  r_s: f32,
+}
+
+struct Ray {
+  cartesian: vec3f,
+  spherical: vec3f,
+  sphericalVelocities: vec3f,
 }
 
 @group(0) @binding(0) var <uniform> settings: Settings;
 @group(0) @binding(1) var <uniform> camera: Camera;
-@group(0) @binding(2) var output: texture_storage_2d<rgba8unorm, write>;
-@group(0) @binding(3) var skybox: texture_storage_2d<rgba8unorm, read>;
+@group(0) @binding(2) var <uniform> blackHole: BlackHole;
+@group(0) @binding(3) var output: texture_storage_2d<rgba8unorm, write>;
+@group(0) @binding(4) var skybox: texture_cube<f32>;
+@group(0) @binding(5) var skyboxSampler: sampler;
 
 @compute
 @workgroup_size(8, 8, 1)
@@ -22,33 +37,65 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
     return;
   }
 
-  let aspectRatio: f32 = camera.imageSize.x / camera.imageSize.y;
-  let viewportHeight: f32 = 2 * camera.focalLength * tan(camera.fieldOfView / 2);
-  let viewportSize: vec2f = vec2f(
-    viewportHeight * aspectRatio,
-    viewportHeight,
-  );
+  let pixelLocation: vec3f = getPixelLocation(coords);
 
-  let viewportU: vec3f = vec3f(viewportSize.x, 0.0, 0.0);
-  let viewportV: vec3f = vec3f(0.0, viewportSize.y, 0.0);
+  var ray: Ray;
 
-  let viewportDeltaU: vec3f = viewportU / camera.imageSize.x;
-  let viewportDeltaV: vec3f = viewportV / camera.imageSize.y;
+  ray.cartesian = camera.position;
+  ray.spherical = cartesianToSpherical(ray.cartesian);
+  // TODO: ADAPT TO SPHERICAL COORDINATES
+  ray.sphericalVelocities = normalize(pixelLocation - camera.position);
 
-  let viewportBottomLeft: vec3f = 
-    camera.position
-    - vec3f(0.0, 0.0, camera.focalLength)
-    - 0.5 * (viewportU + viewportV);
+  var colour: vec3f = vec3f(0.0);
+  var hitBlackHole: bool = false;
 
-  let pixelLocation: vec3f = 
-    viewportBottomLeft
-    + 0.5 * (viewportDeltaU + viewportDeltaV)
-    + coords.x * viewportDeltaU
-    + coords.y * viewportDeltaV;
+  for(var i: u32 = 0; i < settings.numberOfSteps; i++){
+    step(&ray);
 
-  let rayDirection: vec3f = normalize(pixelLocation - camera.position);
-  let t: f32 = 0.5 * (rayDirection.y + 1.0);
-  let colour: vec4f = textureLoad(skybox, id.xy);
+    if(length(ray.cartesian) < blackHole.r_s){
+      hitBlackHole = true;
+      break;
+    }
+  }
 
-  textureStore(output, id.xy, colour);
+  if(!hitBlackHole){
+    colour = textureSampleLevel(skybox, skyboxSampler, ray.sphericalVelocities, 0.0).rgb;
+  }
+
+  textureStore(output, id.xy, vec4f(colour, 1.0));
+}
+
+fn getPixelLocation(coords: vec2f) -> vec3f {
+  return
+    camera.pixel00
+    + coords.x * camera.viewportDeltaU
+    + coords.y * camera.viewportDeltaV;
+}
+
+fn step(ray: ptr<function, Ray>) {
+  let stepSize: f32 = blackHole.r_s / 10;
+
+  // TODO: ADAPT TO SPHERICAL COORDINATES
+  ray.cartesian += ray.sphericalVelocities * stepSize;
+}
+
+fn cartesianToSpherical(cartesian: vec3f) -> vec3f {
+  let r: f32 = sqrt(cartesian.x * cartesian.x + cartesian.y * cartesian.y + cartesian.z * cartesian.z);
+  let theta: f32 = acos(cartesian.y / r);
+  let phi: f32 = atan2(cartesian.x, cartesian.z);
+
+  return vec3f(r, theta, phi);
+}
+
+fn sphericalToCartesian(spherical: vec3f) -> vec3f {
+  let sinTheta: f32 = sin(spherical.y);
+  let sinPhi: f32 = sin(spherical.z);
+  let cosTheta: f32 = cos(spherical.y);
+  let cosPhi: f32 = cos(spherical.z);
+
+  let x: f32 = spherical.x * sinTheta * sinPhi;
+  let y: f32 = spherical.x * cosTheta;
+  let z: f32 = spherical.x * sinTheta * cosPhi;
+
+  return vec3f(x, y, z);
 }

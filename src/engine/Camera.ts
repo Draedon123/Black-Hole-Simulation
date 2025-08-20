@@ -1,5 +1,4 @@
 import { BufferWriter } from "../utils/BufferWriter";
-import { Matrix4 } from "../utils/Matrix4";
 import { Vector3 } from "../utils/Vector3";
 
 type CameraSettings = {
@@ -12,7 +11,9 @@ type CameraSettings = {
 
 class Camera {
   public static readonly BYTE_LENGTH: number =
-    8 * Float32Array.BYTES_PER_ELEMENT;
+    18 * Float32Array.BYTES_PER_ELEMENT +
+    // padding
+    2 * Float32Array.BYTES_PER_ELEMENT;
   private static readonly GLOBAL_UP: Vector3 = new Vector3(0, 1, 0);
 
   public imageWidth: number;
@@ -24,9 +25,9 @@ class Camera {
   private up!: Vector3;
   private right!: Vector3;
   private back!: Vector3;
-  // private viewportDeltaU!: Vector3;
-  // private viewportDeltaV!: Vector3;
-  // private pixel00!: Vector3;
+  private viewportDeltaU!: Vector3;
+  private viewportDeltaV!: Vector3;
+  private pixel00!: Vector3;
 
   private initialised: boolean;
   private device!: GPUDevice;
@@ -47,18 +48,14 @@ class Camera {
 
     bufferWriter.writeVec3f(this.position);
     bufferWriter.pad(4);
+    bufferWriter.writeVec3f(this.viewportDeltaU);
+    bufferWriter.pad(4);
+    bufferWriter.writeVec3f(this.viewportDeltaV);
+    bufferWriter.pad(4);
+    bufferWriter.writeVec3f(this.pixel00);
+    bufferWriter.pad(4);
     bufferWriter.writeFloat32(this.imageWidth);
     bufferWriter.writeFloat32(this.imageHeight);
-    bufferWriter.writeFloat32(
-      Vector3.subtract(this.position, this.lookAt).magnitude
-    );
-    bufferWriter.writeFloat32(this.fieldOfView);
-    // bufferWriter.writeVec3f(this.viewportDeltaU);
-    // bufferWriter.pad(4);
-    // bufferWriter.writeVec3f(this.viewportDeltaV);
-    // bufferWriter.pad(4);
-    // bufferWriter.writeVec3f(this.pixel00);
-    // bufferWriter.pad(4);
 
     return bufferWriter.buffer;
   }
@@ -85,29 +82,35 @@ class Camera {
       return;
     }
 
-    // const aspectRatio = this.imageWidth / this.imageHeight;
+    const aspectRatio = this.imageWidth / this.imageHeight;
 
-    // const focalLength = Vector3.subtract(this.position, this.lookAt).magnitude;
-    // const viewportHeight = 2 * focalLength * Math.tan(this.fieldOfView / 2);
-    // const viewportWidth = aspectRatio * viewportHeight;
+    const focalLength = Vector3.subtract(this.position, this.lookAt).magnitude;
+
+    if (focalLength < 1e-8) {
+      console.error(`Look At is too close to Position. Buffer not updated`);
+      return;
+    }
+
+    const viewportHeight = 2 * focalLength * Math.tan(this.fieldOfView / 2);
+    const viewportWidth = aspectRatio * viewportHeight;
 
     this.back = Vector3.subtract(this.position, this.lookAt).normalise();
     this.right = Vector3.cross(Camera.GLOBAL_UP, this.back);
     this.up = Vector3.cross(this.back, this.right);
 
-    // const viewportU = Vector3.scale(this.right, viewportWidth);
-    // const viewportV = Vector3.scale(this.up, viewportHeight);
+    const viewportU = Vector3.scale(this.right, viewportWidth);
+    const viewportV = Vector3.scale(this.up, viewportHeight);
 
-    // this.viewportDeltaU = Vector3.scale(viewportU, 1 / this.imageWidth);
-    // this.viewportDeltaV = Vector3.scale(viewportV, 1 / this.imageHeight);
+    this.viewportDeltaU = Vector3.scale(viewportU, 1 / this.imageWidth);
+    this.viewportDeltaV = Vector3.scale(viewportV, 1 / this.imageHeight);
 
-    // const position = this.position
-    //   .clone()
-    //   .subtract(Vector3.scale(this.back, focalLength));
+    const position = this.position
+      .clone()
+      .subtract(Vector3.scale(this.back, focalLength));
 
-    // this.pixel00 = position
-    //   .subtract(Vector3.add(viewportU, viewportV).scale(0.5))
-    //   .add(Vector3.add(this.viewportDeltaU, this.viewportDeltaV).scale(0.5));
+    this.pixel00 = position
+      .subtract(Vector3.add(viewportU, viewportV).scale(0.5))
+      .add(Vector3.add(this.viewportDeltaU, this.viewportDeltaV).scale(0.5));
 
     this.device.queue.writeBuffer(this.buffer, 0, this.serialise());
   }
@@ -121,29 +124,6 @@ class Camera {
 
   public get aspectRatio(): number {
     return this.imageWidth / this.imageHeight;
-  }
-
-  public getPerspectiveViewMatrix(): Matrix4 {
-    return this.getPerspectiveMatrix().postMultiply(this.getViewMatrix());
-  }
-
-  private getPerspectiveMatrix(): Matrix4 {
-    return Matrix4.perspective(
-      this.fieldOfView,
-      this.aspectRatio,
-      0.01,
-      Infinity
-    );
-  }
-
-  private getViewMatrix(): Matrix4 {
-    const forward = Vector3.scale(this.back, -1);
-
-    return Matrix4.lookAt(
-      this.position,
-      Vector3.add(this.position, forward),
-      this.up
-    );
   }
 }
 

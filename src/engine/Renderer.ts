@@ -1,35 +1,41 @@
 import { BufferWriter } from "../utils/BufferWriter";
 import { resolveBasePath } from "../utils/resolveBasePath";
+import { BlackHole, type BlackHoleSettings } from "./BlackHole";
 import { Camera } from "./Camera";
 import { Shader } from "./Shader";
-import { SkyboxRenderer } from "./SkyboxRenderer";
 import { Texture } from "./Texture";
 
 type RendererSettings = {
   gamma: number;
+  numberOfSteps: number;
+  blackHole: Partial<BlackHoleSettings>;
 };
 
 class Renderer {
   private static readonly RENDER_SETTINGS_BYTE_LENGTH: number =
     1 * Float32Array.BYTES_PER_ELEMENT;
+  private static readonly COMPUTE_SETTINGS_BYTE_LENGTH: number =
+    1 * Float32Array.BYTES_PER_ELEMENT;
 
   public readonly canvas: HTMLCanvasElement;
   public readonly camera: Camera;
-  public readonly settings: RendererSettings;
+  public readonly settings: Omit<RendererSettings, "blackHole">;
 
   private readonly device: GPUDevice;
   private readonly ctx: GPUCanvasContext;
   private readonly canvasFormat: GPUTextureFormat;
 
+  public blackHole: BlackHole;
+
   private initialised: boolean;
-  private skyboxRenderer!: SkyboxRenderer;
+  private skybox!: Texture;
 
   private renderSettingsBuffer!: GPUBuffer;
   private renderBindGroupLayout!: GPUBindGroupLayout;
   private renderBindGroup!: GPUBindGroup;
   private renderPipeline!: GPURenderPipeline;
   private renderTexture!: GPUTexture;
-  private renderSampler!: GPUSampler;
+  private sampler!: GPUSampler;
 
   private computeSettingsBuffer!: GPUBuffer;
   private computeBindGroupLayout!: GPUBindGroupLayout;
@@ -52,17 +58,29 @@ class Renderer {
     this.ctx = ctx;
     this.canvasFormat = "rgba8unorm";
     this.camera = new Camera();
+    this.blackHole = new BlackHole(settings.blackHole);
     this.initialised = false;
 
     this.settings = {
       gamma: settings.gamma ?? 1.5,
+      numberOfSteps: settings.numberOfSteps ?? 1000,
     };
   }
 
-  private serialiseSettings(): ArrayBuffer {
+  private serialiseRenderSettings(): ArrayBuffer {
     const bufferWriter = new BufferWriter(Renderer.RENDER_SETTINGS_BYTE_LENGTH);
 
     bufferWriter.writeFloat32(this.settings.gamma);
+
+    return bufferWriter.buffer;
+  }
+
+  private serialiseComputeSettings(): ArrayBuffer {
+    const bufferWriter = new BufferWriter(
+      Renderer.COMPUTE_SETTINGS_BYTE_LENGTH
+    );
+
+    bufferWriter.writeUint32(this.settings.numberOfSteps);
 
     return bufferWriter.buffer;
   }
@@ -95,7 +113,7 @@ class Renderer {
         },
         {
           binding: 2,
-          resource: this.renderSampler,
+          resource: this.sampler,
         },
       ],
     });
@@ -116,11 +134,21 @@ class Renderer {
         },
         {
           binding: 2,
-          resource: this.renderTexture.createView(),
+          resource: { buffer: this.blackHole.buffer },
         },
         {
           binding: 3,
-          resource: this.skyboxRenderer.framebuffer.createView(),
+          resource: this.renderTexture.createView(),
+        },
+        {
+          binding: 4,
+          resource: this.skybox.texture.createView({
+            dimension: "cube",
+          }),
+        },
+        {
+          binding: 5,
+          resource: this.sampler,
         },
       ],
     });
@@ -131,6 +159,7 @@ class Renderer {
       return;
     }
 
+    this.blackHole.initialise(this.device);
     this.camera.initialise(this.device);
 
     await this.initialiseRendering();
@@ -148,12 +177,10 @@ class Renderer {
       this.renderTexture.destroy();
 
       this.camera.setImageDimensions(width, height);
-      this.skyboxRenderer.setDimensions([width, height]);
       this.renderTexture = this.createRenderTexture();
       this.renderBindGroup = this.createRenderBindGroup();
       this.computeBindGroup = this.createComputeBindGroup();
 
-      this.skyboxRenderer.render(this.camera);
       this.render();
     }).observe(this.canvas);
 
@@ -166,20 +193,11 @@ class Renderer {
       format: this.canvasFormat,
     });
 
-    this.skyboxRenderer = await SkyboxRenderer.create(
-      this.device,
-      this.canvasFormat,
-      [this.canvas.width, this.canvas.height],
-      "Skybox"
-    );
-
-    const skybox = await Texture.createCubemap(
+    this.skybox = await Texture.createCubemap(
       this.device,
       "Skybox Texture",
       "skybox"
     );
-    this.skyboxRenderer.addSkybox(skybox);
-    this.skyboxRenderer.setActiveSkybox(skybox);
 
     this.renderSettingsBuffer = this.device.createBuffer({
       label: "Render Settings Buffer",
@@ -190,12 +208,14 @@ class Renderer {
     this.device.queue.writeBuffer(
       this.renderSettingsBuffer,
       0,
-      this.serialiseSettings()
+      this.serialiseRenderSettings()
     );
 
     this.renderTexture = this.createRenderTexture();
-    this.renderSampler = this.device.createSampler({
+    this.sampler = this.device.createSampler({
       label: "Renderer Texture Sampler",
+      minFilter: "linear",
+      magFilter: "linear",
     });
 
     const shader = await Shader.fetch(
@@ -249,14 +269,14 @@ class Renderer {
   private async initialiseCompute(): Promise<void> {
     this.computeSettingsBuffer = this.device.createBuffer({
       label: "Compute Settings Buffer",
-      size: 1 * Float32Array.BYTES_PER_ELEMENT,
+      size: Renderer.COMPUTE_SETTINGS_BYTE_LENGTH,
       usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.UNIFORM,
     });
 
     this.device.queue.writeBuffer(
       this.computeSettingsBuffer,
       0,
-      new Float32Array([0])
+      this.serialiseComputeSettings()
     );
 
     const shader = await Shader.fetch(
@@ -279,6 +299,11 @@ class Renderer {
         },
         {
           binding: 2,
+          buffer: {},
+          visibility: GPUShaderStage.COMPUTE,
+        },
+        {
+          binding: 3,
           storageTexture: {
             access: "write-only",
             format: "rgba8unorm",
@@ -286,11 +311,15 @@ class Renderer {
           visibility: GPUShaderStage.COMPUTE,
         },
         {
-          binding: 3,
-          storageTexture: {
-            format: "rgba8unorm",
-            access: "read-only",
+          binding: 4,
+          texture: {
+            viewDimension: "cube",
           },
+          visibility: GPUShaderStage.COMPUTE,
+        },
+        {
+          binding: 5,
+          sampler: {},
           visibility: GPUShaderStage.COMPUTE,
         },
       ],

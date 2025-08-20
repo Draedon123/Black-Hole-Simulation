@@ -1,3 +1,6 @@
+type LoopSettings = {
+  wormholeThreshold: number;
+};
 type FrameData = {
   deltaTime: number;
   totalTime: number;
@@ -5,15 +8,20 @@ type FrameData = {
 type LoopCallback = (frameData: FrameData) => unknown;
 
 class Loop {
+  public settings: LoopSettings;
   private readonly callbacks: LoopCallback[] = [];
   private frameID: number | null;
   private lastFrameTime: number;
-  private firstFrameTime: number;
-  constructor() {
+  private totalTime: number;
+  constructor(settings: Partial<LoopSettings> = {}) {
     this.frameID = null;
     this.lastFrameTime = 0;
-    this.firstFrameTime = -1;
+    this.totalTime = 0;
     this.callbacks = [];
+
+    this.settings = {
+      wormholeThreshold: settings.wormholeThreshold ?? 500,
+    };
   }
 
   public start(): void {
@@ -21,7 +29,7 @@ class Loop {
       return;
     }
 
-    this.firstFrameTime = -1;
+    this.totalTime = 0;
     this.frameID = requestAnimationFrame(this.tick.bind(this));
   }
 
@@ -47,20 +55,20 @@ class Loop {
   }
 
   private tick(tickTime: number): void {
-    if (this.firstFrameTime < 0) {
-      this.firstFrameTime = tickTime;
-      this.lastFrameTime = tickTime;
-    }
-
     const deltaTimeMS = tickTime - this.lastFrameTime;
-    const totalTimeMS = tickTime - this.firstFrameTime;
-    const frameData: FrameData = {
-      deltaTime: deltaTimeMS,
-      totalTime: totalTimeMS,
-    };
+    const totalTimeMS = this.totalTime + deltaTimeMS;
 
-    for (const callback of this.callbacks) {
-      callback(frameData);
+    if (deltaTimeMS < this.settings.wormholeThreshold) {
+      const frameData: FrameData = {
+        deltaTime: deltaTimeMS,
+        totalTime: totalTimeMS,
+      };
+
+      for (const callback of this.callbacks) {
+        callback(frameData);
+      }
+
+      this.totalTime = totalTimeMS;
     }
 
     this.lastFrameTime = tickTime;
@@ -73,3 +81,4 @@ class Loop {
 }
 
 export { Loop };
+export type { LoopSettings, FrameData };

@@ -17,10 +17,6 @@ class BufferWriter {
     this.offset = offset;
   }
 
-  public toFloat32Array(): Float32Array {
-    return new Float32Array(this.buffer);
-  }
-
   public writeUint8(uint8: number): void {
     this.dataview.setUint8(this.offset, uint8);
     this.offset += 1;
@@ -49,9 +45,7 @@ class BufferWriter {
   }
 
   public pad(bytes: number): void {
-    for (let i = 0; i < bytes; i++) {
-      this.writeUint8(0);
-    }
+    this.offset += bytes;
   }
 }
 
