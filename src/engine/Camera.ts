@@ -1,4 +1,5 @@
 import { BufferWriter } from "../utils/BufferWriter";
+import { roundUp16Bytes } from "../utils/roundUp16Bytes";
 import { Vector3 } from "../utils/Vector3";
 
 type CameraSettings = {
@@ -10,10 +11,9 @@ type CameraSettings = {
 };
 
 class Camera {
-  public static readonly BYTE_LENGTH: number =
-    18 * Float32Array.BYTES_PER_ELEMENT +
-    // padding
-    2 * Float32Array.BYTES_PER_ELEMENT;
+  public static readonly BYTE_LENGTH: number = roundUp16Bytes(
+    18 * Float32Array.BYTES_PER_ELEMENT
+  );
   private static readonly GLOBAL_UP: Vector3 = new Vector3(0, 1, 0);
 
   public imageWidth: number;

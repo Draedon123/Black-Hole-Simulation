@@ -14,6 +14,7 @@ struct BlackHole {
   position: vec3f,
   mass: f32,
   r_s: f32,
+  kerrParameter: f32,
 }
 
 struct Ray {
@@ -40,9 +41,8 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
 
   var ray: Ray;
 
-  let a: f32 = 0.0;
-  ray.position = boyerLindquistToCartesian(cartesianToBoyerLindquist(camera.position, a), a);
-  ray.velocity = cartesianToBoyerLindquist(normalize(pixelLocation - camera.position), a);
+  ray.position = camera.position;
+  ray.velocity = normalize(pixelLocation - camera.position);
 
   var colour: vec3f = vec3f(0.0);
   var hitBlackHole: bool = false;
@@ -57,7 +57,7 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
   }
 
   if(!hitBlackHole){
-    colour = textureSampleLevel(skybox, skyboxSampler, boyerLindquistToCartesian(ray.velocity, a), 0.0).rgb;
+    colour = textureSampleLevel(skybox, skyboxSampler, ray.velocity, 0.0).rgb;
   }
 
   textureStore(output, id.xy, vec4f(colour, 1.0));
@@ -73,7 +73,7 @@ fn getPixelLocation(coords: vec2f) -> vec3f {
 fn step(ray: ptr<function, Ray>) {
   let stepSize: f32 = blackHole.r_s / 10;
 
-  ray.position += boyerLindquistToCartesian(ray.velocity, 0.0) * stepSize;
+  ray.position += ray.velocity * stepSize;
 }
 
 // https://physics.stackexchange.com/a/739795

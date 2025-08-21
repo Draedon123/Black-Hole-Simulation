@@ -17,20 +17,24 @@ async function main(): Promise<void> {
 
   const loop = new Loop();
 
-  // const scale = 5e-4;
-  loop.addCallback((/*data*/) => {
-    // renderer.camera.lookAt.x =
-    //   renderer.camera.position.x +
-    //   Math.max(1, renderer.camera.position.x) *
-    //     Math.cos(data.totalTime * scale);
-    // renderer.camera.lookAt.z =
-    //   renderer.camera.position.z +
-    //   Math.max(1, renderer.camera.position.z) *
-    //     Math.sin(-data.totalTime * scale);
-    // renderer.camera.updateBuffer();
+  const scale = 5e-4;
+
+  const updateCamera = (time: number) => {
+    renderer.camera.lookAt.x =
+      renderer.camera.position.x +
+      Math.max(1, renderer.camera.position.x) * Math.cos(time * scale);
+    renderer.camera.lookAt.z =
+      renderer.camera.position.z +
+      Math.max(1, renderer.camera.position.z) * Math.sin(-time * scale);
+    renderer.camera.updateBuffer();
+  };
+
+  loop.addCallback((data) => {
+    updateCamera(data.totalTime);
     renderer.render();
   });
 
+  updateCamera(0);
   loop.start();
 }
 

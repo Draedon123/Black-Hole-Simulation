@@ -30,6 +30,7 @@ class Loop {
     }
 
     this.totalTime = 0;
+    this.lastFrameTime = -1;
     this.frameID = requestAnimationFrame(this.tick.bind(this));
   }
 
@@ -55,6 +56,10 @@ class Loop {
   }
 
   private tick(tickTime: number): void {
+    if (this.lastFrameTime < 0) {
+      this.lastFrameTime = tickTime;
+    }
+
     const deltaTimeMS = tickTime - this.lastFrameTime;
     const totalTimeMS = this.totalTime + deltaTimeMS;
 
@@ -81,4 +86,4 @@ class Loop {
 }
 
 export { Loop };
-export type { LoopSettings, FrameData };
+export type { LoopSettings, FrameData, LoopCallback };

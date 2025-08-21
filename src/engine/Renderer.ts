@@ -1,5 +1,6 @@
 import { BufferWriter } from "../utils/BufferWriter";
 import { resolveBasePath } from "../utils/resolveBasePath";
+import { roundUp16Bytes } from "../utils/roundUp16Bytes";
 import { BlackHole, type BlackHoleSettings } from "./BlackHole";
 import { Camera } from "./Camera";
 import { Shader } from "./Shader";
@@ -12,10 +13,12 @@ type RendererSettings = {
 };
 
 class Renderer {
-  private static readonly RENDER_SETTINGS_BYTE_LENGTH: number =
-    1 * Float32Array.BYTES_PER_ELEMENT;
-  private static readonly COMPUTE_SETTINGS_BYTE_LENGTH: number =
-    1 * Float32Array.BYTES_PER_ELEMENT;
+  private static readonly RENDER_SETTINGS_BYTE_LENGTH: number = roundUp16Bytes(
+    1 * Float32Array.BYTES_PER_ELEMENT
+  );
+  private static readonly COMPUTE_SETTINGS_BYTE_LENGTH: number = roundUp16Bytes(
+    1 * Float32Array.BYTES_PER_ELEMENT
+  );
 
   public readonly canvas: HTMLCanvasElement;
   public readonly camera: Camera;
