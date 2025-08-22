@@ -1,4 +1,5 @@
 import { BufferWriter } from "../utils/BufferWriter";
+import { GPUTimer } from "../utils/GPUTimer";
 import { resolveBasePath } from "../utils/resolveBasePath";
 import { roundUp16Bytes } from "../utils/roundUp16Bytes";
 import { BlackHole, type BlackHoleSettings } from "./BlackHole";
@@ -10,6 +11,10 @@ type RendererSettings = {
   gamma: number;
   numberOfSteps: number;
   blackHole: Partial<BlackHoleSettings>;
+  timing?: Partial<{
+    frameTimeElement: HTMLElement;
+    fpsElement: HTMLElement;
+  }>;
 };
 
 class Renderer {
@@ -27,6 +32,7 @@ class Renderer {
   private readonly device: GPUDevice;
   private readonly ctx: GPUCanvasContext;
   private readonly canvasFormat: GPUTextureFormat;
+  private readonly gpuTimer: GPUTimer;
 
   public blackHole: BlackHole;
 
@@ -62,11 +68,32 @@ class Renderer {
     this.canvasFormat = "rgba8unorm";
     this.camera = new Camera();
     this.blackHole = new BlackHole(settings.blackHole);
+    this.gpuTimer = new GPUTimer(this.device, (time) => {
+      const microseconds = time / 1e3;
+      const milliseconds = time / 1e6;
+      const seconds = time / 1e9;
+      const useMilliseconds = milliseconds > 1;
+      const displayTime = (
+        useMilliseconds ? milliseconds : microseconds
+      ).toFixed(2);
+      const prefix = useMilliseconds ? "ms" : "μs";
+
+      if (this.settings.timing?.frameTimeElement !== undefined) {
+        this.settings.timing.frameTimeElement.textContent =
+          displayTime + prefix;
+      }
+
+      if (this.settings.timing?.fpsElement !== undefined) {
+        const fps = 1 / seconds;
+        this.settings.timing.fpsElement.textContent = fps.toFixed(2);
+      }
+    });
     this.initialised = false;
 
     this.settings = {
       gamma: settings.gamma ?? 1.5,
       numberOfSteps: settings.numberOfSteps ?? 1000,
+      timing: settings.timing,
     };
   }
 
@@ -168,6 +195,8 @@ class Renderer {
     await this.initialiseRendering();
     await this.initialiseCompute();
 
+    this.updateSettings();
+
     new ResizeObserver((entries) => {
       const canvas = entries[0];
 
@@ -207,12 +236,6 @@ class Renderer {
       size: Renderer.RENDER_SETTINGS_BYTE_LENGTH,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     });
-
-    this.device.queue.writeBuffer(
-      this.renderSettingsBuffer,
-      0,
-      this.serialiseRenderSettings()
-    );
 
     this.renderTexture = this.createRenderTexture();
     this.sampler = this.device.createSampler({
@@ -275,12 +298,6 @@ class Renderer {
       size: Renderer.COMPUTE_SETTINGS_BYTE_LENGTH,
       usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.UNIFORM,
     });
-
-    this.device.queue.writeBuffer(
-      this.computeSettingsBuffer,
-      0,
-      this.serialiseComputeSettings()
-    );
 
     const shader = await Shader.fetch(
       this.device,
@@ -345,6 +362,20 @@ class Renderer {
     });
   }
 
+  public updateSettings(): void {
+    this.device.queue.writeBuffer(
+      this.renderSettingsBuffer,
+      0,
+      this.serialiseRenderSettings()
+    );
+
+    this.device.queue.writeBuffer(
+      this.computeSettingsBuffer,
+      0,
+      this.serialiseComputeSettings()
+    );
+  }
+
   public render(): void {
     this.compute();
     this.renderToCanvas();
@@ -352,7 +383,7 @@ class Renderer {
 
   private compute(): void {
     const commandEncoder = this.device.createCommandEncoder();
-    const computePass = commandEncoder.beginComputePass();
+    const computePass = this.gpuTimer.beginComputePass(commandEncoder);
 
     computePass.setBindGroup(0, this.computeBindGroup);
     computePass.setPipeline(this.computePipeline);
@@ -400,7 +431,9 @@ class Renderer {
       throw new Error("Could not find suitable GPU Adapter");
     }
 
-    const device = await adapter.requestDevice();
+    const device = await adapter.requestDevice({
+      requiredFeatures: ["timestamp-query"],
+    });
 
     if (device === null) {
       throw new Error("Could not find suitable GPU Device");

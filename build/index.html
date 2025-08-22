@@ -4,11 +4,33 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Black Hole Simulation</title>
-    <script type="module" crossorigin src="/Black-Hole-Simulation/assets/index-L2LEnvIb.js"></script>
-    <link rel="stylesheet" crossorigin href="/Black-Hole-Simulation/assets/index-BEj3U_u_.css">
+    <script type="module" crossorigin src="/Black-Hole-Simulation/assets/index-CZ2MVLRB.js"></script>
+    <link rel="stylesheet" crossorigin href="/Black-Hole-Simulation/assets/index-Wt1dhxiu.css">
   </head>
   <body>
-    <span id="info"></span>
+    <span id="alert"></span>
+    <div id="info">
+      <h1>Info Panel</h1>
+      <input type="image" id="chevron" src="down-chevron.png" />
+      <div id="content">
+        Frame Time: <span id="frameTime"></span>
+        <br />
+        FPS: <span id="fps"></span>
+        <br />
+        <label>
+          <span>Gamma</span>
+          <span id="gammaValue">(1.00)</span>
+          <input
+            type="range"
+            id="gammaInput"
+            min="0.01"
+            max="10"
+            step="0.01"
+            value="1"
+          />
+        </label>
+      </div>
+    </div>
     <canvas id="main"></canvas>
 
   </body>

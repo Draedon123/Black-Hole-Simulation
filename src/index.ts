@@ -1,14 +1,23 @@
 import "./style.css";
 import { Renderer } from "./engine/Renderer";
 import { Loop } from "./utils/Loop";
+import { initialiseConfigPanel } from "./configPanel";
 
 async function main(): Promise<void> {
   const canvas = document.getElementById("main") as HTMLCanvasElement;
+  const frameTimeElement = document.getElementById("frameTime") as HTMLElement;
+  const fpsElement = document.getElementById("fps") as HTMLElement;
   const renderer = await Renderer.create(canvas, {
     gamma: 1,
     numberOfSteps: 100,
+    timing: {
+      frameTimeElement,
+      fpsElement,
+    },
   });
   await renderer.initialise();
+
+  initialiseConfigPanel(renderer);
 
   renderer.camera.position.x =
     renderer.blackHole.schwarzschildRadius * Math.SQRT1_2 * 5;
@@ -41,7 +50,7 @@ async function main(): Promise<void> {
 main().catch((error) => {
   const errorMessage =
     error instanceof Error ? error.message : JSON.stringify(error);
-  const errorElement = document.getElementById("info");
+  const errorElement = document.getElementById("alert");
 
   if (errorElement !== null) {
     errorElement.classList.add("error");

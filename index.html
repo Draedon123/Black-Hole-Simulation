@@ -6,7 +6,29 @@
     <title>Black Hole Simulation</title>
   </head>
   <body>
-    <span id="info"></span>
+    <span id="alert"></span>
+    <div id="info">
+      <h1>Info Panel</h1>
+      <input type="image" id="chevron" src="down-chevron.png" />
+      <div id="content">
+        Frame Time: <span id="frameTime"></span>
+        <br />
+        FPS: <span id="fps"></span>
+        <br />
+        <label>
+          <span>Gamma</span>
+          <span id="gammaValue">(1.00)</span>
+          <input
+            type="range"
+            id="gammaInput"
+            min="0.01"
+            max="10"
+            step="0.01"
+            value="1"
+          />
+        </label>
+      </div>
+    </div>
     <canvas id="main"></canvas>
 
     <script type="module" src="/src/index.ts"></script>
