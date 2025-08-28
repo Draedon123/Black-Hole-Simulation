@@ -9,9 +9,6 @@ type BlackHoleSettings = {
   spinParameter: number;
 };
 
-const G: number = 6.6743e-11;
-const c: number = 299792458;
-
 class BlackHole implements BlackHoleSettings {
   private static readonly BYTE_LENGTH: number = roundUp16Bytes(
     6 * Float32Array.BYTES_PER_ELEMENT
@@ -71,7 +68,7 @@ class BlackHole implements BlackHoleSettings {
 
   public get schwarzschildRadius(): number {
     // r_s = 2GM / c^2
-    return (2 * G * this.mass) / (c * c);
+    return (2 * this.mass) / 1e20;
   }
 
   public get kerrParameter(): number {
@@ -80,7 +77,7 @@ class BlackHole implements BlackHoleSettings {
     // a = J / Mc
     // => a = sGM^2 / Mc^2
     // => a = sGM / c^2
-    return (this.spinParameter * G * this.mass) / (c * c);
+    return this.spinParameter * this.mass;
   }
 }
 

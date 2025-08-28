@@ -1,3 +1,7 @@
+#!import coordinates
+#!import derivatives
+#!import rkf45
+
 struct Settings {
   numberOfSteps: u32,
 }
@@ -63,6 +67,24 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
   textureStore(output, id.xy, vec4f(colour, 1.0));
 }
 
+@compute
+@workgroup_size(8, 8, 1)
+fn rk45_test(@builtin(global_invocation_id) id: vec3u) {
+  let coords: vec2f = vec2f(id.xy);
+  if(coords.x > camera.imageSize.x || coords.y > camera.imageSize.y){
+    return;
+  }
+
+  var value: vec3f = vec3f(1.0);
+
+  // integrate y' = y, which should give y = e^y
+  // value should be vec3f(e, e, e);
+  let result: vec3f = rkf45_vec3f(value, 0.0, 1.0, vec3f(1e-6), vec3f(0.01));
+
+  // expected colour: 0xe7e7e7
+  textureStore(output, id.xy, vec4f(result / 3.0, 1.0));
+}
+
 fn getPixelLocation(coords: vec2f) -> vec3f {
   return
     camera.pixel00
@@ -74,42 +96,4 @@ fn step(ray: ptr<function, Ray>) {
   let stepSize: f32 = blackHole.r_s / 10;
 
   ray.position += ray.velocity * stepSize;
-}
-
-// https://physics.stackexchange.com/a/739795
-// COORDINATE SYSTEM CONVERSION:
-// x -> z
-// y -> x
-// z -> y
-fn cartesianToBoyerLindquist(cartesian: vec3f, a: f32) -> vec3f {
-  let aa: f32 = a * a;
-  let xx: f32 = cartesian.x * cartesian.x;
-  let yy: f32 = cartesian.y * cartesian.y;
-  let zz: f32 = cartesian.z * cartesian.z;
-
-  let r: f32 = sqrt(sqrt(yy * yy + 2 * xx * yy + 2 * zz * yy + 2 * aa * yy + xx * xx + 2 * zz * xx - 2 * aa * xx + zz * zz - 2 * aa * zz + aa * aa) + xx + yy + zz - aa) / sqrt(2);
-  let theta: f32 = acos(cartesian.y / r);
-  let phi: f32 = atan2(cartesian.x, cartesian.z);
-
-  return vec3f(r, theta, phi);
-}
-
-// https://physics.stackexchange.com/q/739653
-// COORDINATE SYSTEM CONVERSION:
-// x -> z
-// y -> x
-// z -> y
-fn boyerLindquistToCartesian(boyerLindquist: vec3f, a: f32) -> vec3f {
-  let ra: f32 = sqrt(boyerLindquist.x * boyerLindquist.x + a * a);
-
-  let sinTheta: f32 = sin(boyerLindquist.y);
-  let sinPhi: f32 = sin(boyerLindquist.z);
-  let cosTheta: f32 = cos(boyerLindquist.y);
-  let cosPhi: f32 = cos(boyerLindquist.z);
-
-  let x: f32 = ra * sinTheta * sinPhi;
-  let y: f32 = boyerLindquist.x * cosTheta;
-  let z: f32 = ra * sinTheta * cosPhi;
-
-  return vec3f(x, y, z);
 }

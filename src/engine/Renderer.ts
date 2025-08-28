@@ -207,6 +207,7 @@ class Renderer {
       this.canvas.height = height;
 
       this.renderTexture.destroy();
+      this.gpuTimer.reset();
 
       this.camera.setImageDimensions(width, height);
       this.renderTexture = this.createRenderTexture();
@@ -357,7 +358,7 @@ class Renderer {
       layout: pipelineLayout,
       compute: {
         module: shader.shader,
-        entryPoint: "main",
+        entryPoint: "rk45_test",
       },
     });
   }

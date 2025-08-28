@@ -41,7 +41,7 @@ fn fragmentMain(input: VertexOutput) -> @location(0) vec4f {
 }
 
 fn gammaCorrect(colour: ptr<function, vec4f>) {
-  let inverseGamma = 1 / settings.gamma;
+  let inverseGamma = 1.0 / settings.gamma;
 
   colour.r = pow(colour.r, inverseGamma);
   colour.g = pow(colour.g, inverseGamma);
