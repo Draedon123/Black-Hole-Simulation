@@ -10,7 +10,7 @@ A simple black hole simulation built solely from WebGPU and JS.
 
 ## Black Hole Physics
 
-- [Spherical orbits around a Kerr black hole](https://arxiv.org/abs/2007.04022)
+- [Spherical orbits around a Kerr black hole](https://doi.org/10.1007/s10714-020-02782-z)
 
 ## Maths
 
