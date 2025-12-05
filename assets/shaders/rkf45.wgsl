@@ -1,5 +1,3 @@
-const EPSILON: f32 = 1e-8;
-
 const A1: f32 = 0.0;
 const A2: f32 = 1.0  / 4.0;
 const A3: f32 = 3.0  / 8.0;
@@ -48,43 +46,58 @@ const TE6: f32 = C6H - C6;
 const FAC: f32 = 0.9;
 const FAC_MIN: f32 = 0.1;
 const FAC_MAX: f32 = 3.0;
+const SQRT_THIRD: f32 = sqrt(1.0 / 3.0);
 
 // numerically integrates from t0 to tn
-fn rkf45_vec3f(initial: vec3f, t0: f32, tn: f32, atol: vec3f, rtol: vec3f) -> vec3f {
-  var fac: f32 = FAC;
-  var facMax: f32 = FAC_MAX;
+fn rkf45_vec3f(y0: vec3f, t0: f32, tn: f32, atol: vec3f, rtol: vec3f, derivativeFunction: u32) -> vec3f {
+  // let inverseScale: vec3f = 1.0 / (atol + abs(y0) * rtol);
+  // let f0: vec3f = derivative(derivativeFunction, index, t0, y0);
+  // // RMS
+  // let d0: f32 = length(y0 * inverseScale) * SQRT_THIRD;
+  // let d1: f32 = length(f0 * inverseScale) * SQRT_THIRD;
+
+  // let h0: f32 = select(0.01 * (d0 / d1), 1e-6, max(d0, d1) < 1e-5);
+  // let y1: vec3f = y0 + h0 * f0;
+  // let f1: vec3f = derivative(derivativeFunction, index, t0 + h0, y1);
+  // let d2: f32 = length((f1 - f0) * inverseScale) * SQRT_THIRD / h0;
+  // let h1: f32 = select(pow(0.01 / max(d1, d2), 0.2), max(1e-6, h0 * 1e-3), max(d1, d2) <= 1e-15);
+
+  // var stepSize: f32 = min(100 * h0, h1);
 
   var stepSize: f32 = (tn - t0) / 100.0;
   var t: f32 = t0;
-  var y: vec3f = initial;
+  var y: vec3f = y0;
+  var facMax: f32 = FAC_MAX;
 
   while(t < tn){
-    let k1: vec3f = derivative(t + A1 * stepSize, y);
-    let k2: vec3f = derivative(t + A2 * stepSize, y + B21 * k1);
-    let k3: vec3f = derivative(t + A3 * stepSize, y + B31 * k1 + B32 * k2);
-    let k4: vec3f = derivative(t + A4 * stepSize, y + B41 * k1 + B42 * k2 + B43 * k3);
-    let k5: vec3f = derivative(t + A5 * stepSize, y + B51 * k1 + B52 * k2 + B53 * k3 + B54 * k4);
-    let k6: vec3f = derivative(t + A6 * stepSize, y + B61 * k1 + B62 * k2 + B63 * k3 + B64 * k4 + B65 * k5);
+    if(t + stepSize > tn){
+      stepSize = tn - t;
+    }
+
+    let k1: vec3f = derivative(derivativeFunction, t + A1 * stepSize, y);
+    let k2: vec3f = derivative(derivativeFunction, t + A2 * stepSize, y + stepSize * (B21 * k1));
+    let k3: vec3f = derivative(derivativeFunction, t + A3 * stepSize, y + stepSize * (B31 * k1 + B32 * k2));
+    let k4: vec3f = derivative(derivativeFunction, t + A4 * stepSize, y + stepSize * (B41 * k1 + B42 * k2 + B43 * k3));
+    let k5: vec3f = derivative(derivativeFunction, t + A5 * stepSize, y + stepSize * (B51 * k1 + B52 * k2 + B53 * k3 + B54 * k4));
+    let k6: vec3f = derivative(derivativeFunction, t + A6 * stepSize, y + stepSize * (B61 * k1 + B62 * k2 + B63 * k3 + B64 * k4 + B65 * k5));
 
     let newY: vec3f = y + stepSize * (C1H * k1 + C2H * k2 + C3H * k3 + C4H * k4 + C5H * k5 + C6H * k6);
-    let truncationError: f32 = truncationError_vec3f(k1, k2, k3, k4, k5, k6, atol, rtol, y, newY);
-    let accepted: bool = truncationError <= 1.0;
+    let error: f32 = truncationError_vec3f(k1, k2, k3, k4, k5, k6, atol, rtol, y, newY);
 
-    stepSize *= clamp(fac * pow(truncationError, -0.2), FAC_MIN, facMax);
-
-    if(accepted){
+    if(error <= 1.0){
       y = newY;
-      t = min(t + stepSize, tn);
+      t += stepSize;
       facMax = FAC_MAX;
     } else {
       facMax = 1.0;
     }
+
+    stepSize *= clamp(FAC * pow(error, -0.2), FAC_MIN, facMax);
   }
 
   return y;
 }
 
-const SQRT_THIRD: f32 = sqrt(1.0 / 3.0);
 fn truncationError_vec3f(
   k1: vec3f, k2: vec3f, k3: vec3f, k4: vec3f, k5: vec3f, k6: vec3f,
   atol: vec3f, rtol: vec3f,
@@ -94,10 +107,32 @@ fn truncationError_vec3f(
   let error: vec3f = TE1 * k1 + TE2 * k2 + TE3 * k3 + TE4 * k4 + TE5 * k5 + TE6 * k6;
   let scaled: vec3f = error / scale;
 
-  // RMS
+  // RMSE
   return length(scaled) * SQRT_THIRD;
 }
 
-fn derivative(t: f32, state: vec3f) -> vec3f {
-  return state;
+@compute
+@workgroup_size(8, 8, 1)
+fn rkf45_test(@builtin(global_invocation_id) id: vec3u) {
+  let coords: vec2f = vec2f(id.xy);
+  if(coords.x > camera.imageSize.x || coords.y > camera.imageSize.y){
+    return;
+  }
+
+  let y_0: vec3f = vec3f(0.0, 0.5, 1.0);
+
+  // integrate dy/dx = y, which should give y = y_0 * e^x
+  // result should be vec3f(0, 0.5e, e);
+  let result: vec3f = rkf45_vec3f(y_0, 0.0, 1.0, vec3f(1e-7), vec3f(1e-3), 0);
+
+  // expected colour: 0x0073e7
+  textureStore(output, id.xy, vec4f(result / 3.0, 1.0));
+}
+
+fn derivative(derivativeFunction: u32, t: f32, state: vec3f) -> vec3f {
+  switch(derivativeFunction){
+    default: {
+      return state;
+    }
+  }
 }

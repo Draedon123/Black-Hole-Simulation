@@ -29,6 +29,7 @@ async function main(): Promise<void> {
   const scale = 5e-4;
 
   const updateCamera = (time: number) => {
+    time = 5000;
     renderer.camera.lookAt.x =
       renderer.camera.position.x +
       Math.max(1, renderer.camera.position.x) * Math.cos(time * scale);
@@ -44,7 +45,8 @@ async function main(): Promise<void> {
   });
 
   updateCamera(0);
-  loop.start();
+  renderer.render();
+  // loop.start();
 }
 
 main().catch((error) => {

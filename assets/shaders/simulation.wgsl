@@ -67,24 +67,6 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
   textureStore(output, id.xy, vec4f(colour, 1.0));
 }
 
-@compute
-@workgroup_size(8, 8, 1)
-fn rk45_test(@builtin(global_invocation_id) id: vec3u) {
-  let coords: vec2f = vec2f(id.xy);
-  if(coords.x > camera.imageSize.x || coords.y > camera.imageSize.y){
-    return;
-  }
-
-  var value: vec3f = vec3f(1.0);
-
-  // integrate y' = y, which should give y = e^y
-  // value should be vec3f(e, e, e);
-  let result: vec3f = rkf45_vec3f(value, 0.0, 1.0, vec3f(1e-6), vec3f(0.01));
-
-  // expected colour: 0xe7e7e7
-  textureStore(output, id.xy, vec4f(result / 3.0, 1.0));
-}
-
 fn getPixelLocation(coords: vec2f) -> vec3f {
   return
     camera.pixel00
@@ -93,7 +75,7 @@ fn getPixelLocation(coords: vec2f) -> vec3f {
 }
 
 fn step(ray: ptr<function, Ray>) {
-  let stepSize: f32 = blackHole.r_s / 10;
+  let stepSize: f32 = blackHole.r_s / 10.0;
 
   ray.position += ray.velocity * stepSize;
 }

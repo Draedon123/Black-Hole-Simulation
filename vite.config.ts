@@ -1,5 +1,7 @@
 import { defineConfig } from "vite";
 
+const additionalHMR: RegExp = /\.wgsl$/;
+
 export default defineConfig({
   build: {
     target: "esnext",
@@ -29,4 +31,16 @@ export default defineConfig({
   },
   base: "/Black-Hole-Simulation",
   publicDir: "assets",
+  plugins: [
+    {
+      name: "WGSL HMR",
+      handleHotUpdate(ctx) {
+        if (!ctx.file.match(additionalHMR)) {
+          return;
+        }
+
+        ctx.server.ws.send({ type: "full-reload" });
+      },
+    },
+  ],
 });
