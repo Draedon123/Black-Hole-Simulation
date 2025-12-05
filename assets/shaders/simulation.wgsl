@@ -48,7 +48,6 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
   ray.position = camera.position;
   ray.velocity = normalize(pixelLocation - camera.position);
 
-  var colour: vec3f = vec3f(0.0);
   var hitBlackHole: bool = false;
 
   for(var i: u32 = 0; i < settings.numberOfSteps; i++){
@@ -60,10 +59,12 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
     }
   }
 
-  if(!hitBlackHole){
-    colour = textureSampleLevel(skybox, skyboxSampler, ray.velocity, 0.0).rgb;
-  }
-
+  let colour: vec3f = select(
+    textureSampleLevel(skybox, skyboxSampler, ray.velocity, 0.0).rgb,
+    vec3f(0.0),
+    hitBlackHole
+  );
+  
   textureStore(output, id.xy, vec4f(colour, 1.0));
 }
 
@@ -75,7 +76,7 @@ fn getPixelLocation(coords: vec2f) -> vec3f {
 }
 
 fn step(ray: ptr<function, Ray>) {
-  let stepSize: f32 = blackHole.r_s / 10.0;
+  let stepSize: f32 = blackHole.r_s / 20.0;
 
   ray.position += ray.velocity * stepSize;
 }

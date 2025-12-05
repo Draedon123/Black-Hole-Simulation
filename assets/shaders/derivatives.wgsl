@@ -14,3 +14,11 @@ fn calculateDelta(boyerLindquist: vec3f, kerrParameter: f32, schwarzschildRadius
 //     (E * E - 1) * blackHole
 //   );  
 // }
+
+fn derivative(derivativeFunction: u32, t: f32, y: vec3f) -> vec3f {
+  switch(derivativeFunction){
+    default: {
+      return vec3f(0.0);
+    }
+  }
+}

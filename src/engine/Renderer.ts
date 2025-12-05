@@ -358,7 +358,7 @@ class Renderer {
       layout: pipelineLayout,
       compute: {
         module: shader.shader,
-        entryPoint: "rkf45_test",
+        entryPoint: "main",
       },
     });
   }

@@ -111,28 +111,28 @@ fn truncationError_vec3f(
   return length(scaled) * SQRT_THIRD;
 }
 
-@compute
-@workgroup_size(8, 8, 1)
-fn rkf45_test(@builtin(global_invocation_id) id: vec3u) {
-  let coords: vec2f = vec2f(id.xy);
-  if(coords.x > camera.imageSize.x || coords.y > camera.imageSize.y){
-    return;
-  }
+// @compute
+// @workgroup_size(8, 8, 1)
+// fn rkf45_test(@builtin(global_invocation_id) id: vec3u) {
+//   let coords: vec2f = vec2f(id.xy);
+//   if(coords.x > camera.imageSize.x || coords.y > camera.imageSize.y){
+//     return;
+//   }
 
-  let y_0: vec3f = vec3f(0.0, 0.5, 1.0);
+//   let y_0: vec3f = vec3f(0.0, 0.5, 1.0);
 
-  // integrate dy/dx = y, which should give y = y_0 * e^x
-  // result should be vec3f(0, 0.5e, e);
-  let result: vec3f = rkf45_vec3f(y_0, 0.0, 1.0, vec3f(1e-7), vec3f(1e-3), 0);
+//   // integrate dy/dx = y, which should give y = y_0 * e^x
+//   // result should be vec3f(0, 0.5e, e);
+//   let result: vec3f = rkf45_vec3f(y_0, 0.0, 1.0, vec3f(1e-7), vec3f(1e-3), 0);
 
-  // expected colour: 0x0073e7
-  textureStore(output, id.xy, vec4f(result / 3.0, 1.0));
-}
+//   // expected colour: 0x0073e7
+//   textureStore(output, id.xy, vec4f(result / 3.0, 1.0));
+// }
 
-fn derivative(derivativeFunction: u32, t: f32, state: vec3f) -> vec3f {
-  switch(derivativeFunction){
-    default: {
-      return state;
-    }
-  }
-}
+// fn derivative(derivativeFunction: u32, t: f32, y: vec3f) -> vec3f {
+//   switch(derivativeFunction){
+//     default: {
+//       return y;
+//     }
+//   }
+// }
